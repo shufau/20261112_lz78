@@ -126,7 +126,7 @@
         <details id="inputPreviewContainer" style="display: none;">
             <summary>👀 預覽上傳的檔案 (點擊展開)</summary>
             <div class="preview-toolbar">
-                <button type="button" class="btn-toggle-view" id="inputToggleBtn" data-view="text">切換至 16 進位檢視</button>
+                <button type="button" class="btn-toggle-view" id="inputToggleBtn" data-view="text">切換至 16 進位 (Hex) 檢視</button>
             </div>
             <pre class="preview-content" id="inputPreview"></pre>
         </details>
@@ -178,7 +178,7 @@
         <details>
             <summary>👀 預覽處理後的檔案 (點擊展開)</summary>
             <div class="preview-toolbar">
-                <button type="button" class="btn-toggle-view" id="outputToggleBtn" data-view="text">切換至 16 進位檢視</button>
+                <button type="button" class="btn-toggle-view" id="outputToggleBtn" data-view="text">切換至 16 進位 (Hex) 檢視</button>
             </div>
             <pre class="preview-content" id="outputPreview"></pre>
         </details>
@@ -207,7 +207,7 @@
             const slice = uint8Array.length > limit ? uint8Array.slice(0, limit) : uint8Array;
             const decoder = new TextDecoder('utf-8', { fatal: false });
             let text = decoder.decode(slice);
-            text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // 替換不可見字元為  符號
+            text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // 替換不可見字元為亂碼符號
             if (uint8Array.length > limit) text += "\n\n... (檔案過大，僅顯示前 " + limit + " 字元)";
             return text;
         }
@@ -228,13 +228,12 @@
                     if (j < chunk.length) {
                         const byte = chunk[j];
                         hexStr += byte.toString(16).padStart(2, '0') + " ";
-                        // ASCII 可視範圍 32~126
                         asciiStr += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : ".";
                     } else {
                         hexStr += "   ";
                         asciiStr += " ";
                     }
-                    if (j === 7) hexStr += " "; // 中間加一個空格區隔 8 bytes
+                    if (j === 7) hexStr += " ";
                 }
                 hexDump += `${offset}  ${hexStr} |${asciiStr}|\n`;
             }
@@ -243,7 +242,7 @@
             return hexDump;
         }
 
-        // 更新預覽畫面渲染
+        // 更新畫面與按鈕文字狀態
         function updatePreviewDisplay(elementId, btnId, dataBytes) {
             if (!dataBytes) return;
             const btn = document.getElementById(btnId);
@@ -259,7 +258,7 @@
             }
         }
 
-        // 綁定預覽切換按鈕事件
+        // 綁定預覽切換按鈕事件 (點擊後切換 data-view 並重繪)
         document.getElementById('inputToggleBtn').addEventListener('click', (e) => {
             const currentMode = e.target.getAttribute('data-view');
             e.target.setAttribute('data-view', currentMode === 'text' ? 'hex' : 'text');
@@ -289,9 +288,15 @@
             const arrayBuffer = await file.arrayBuffer();
             currentInputBytes = new Uint8Array(arrayBuffer);
 
-            // 初始化時預設為 Text 模式
-            document.getElementById('inputToggleBtn').setAttribute('data-view', 'text');
+            // 智慧判斷：如果是壓縮檔，預設開啟 Hex 檢視；否則用純文字檢視
+            const isCompressed = file.name.endsWith('.lz78') || file.name.endsWith('.ah');
+            const defaultView = isCompressed ? 'hex' : 'text';
+            
+            document.getElementById('inputToggleBtn').setAttribute('data-view', defaultView);
             updatePreviewDisplay('inputPreview', 'inputToggleBtn', currentInputBytes);
+            
+            // 自動切換操作選單為「解壓縮」
+            if (isCompressed) document.getElementById('operation').value = 'decompress';
             
             document.getElementById('inputPreviewContainer').style.display = 'block';
             document.getElementById('resultCard').style.display = 'none'; 
@@ -343,8 +348,9 @@
                         ratioEl.style.color = "var(--primary)";
                     }
 
-                    // 預設為 Hex 模式 (通常壓縮完的檔案看 Hex 比較有意義)，並更新畫面
-                    document.getElementById('outputToggleBtn').setAttribute('data-view', 'hex');
+                    // 智慧判斷：如果是壓縮操作，產出物是二進位，預設 Hex；解壓縮則預設 Text
+                    const outputDefaultView = (operation === 'compress') ? 'hex' : 'text';
+                    document.getElementById('outputToggleBtn').setAttribute('data-view', outputDefaultView);
                     updatePreviewDisplay('outputPreview', 'outputToggleBtn', currentOutputBytes);
                     
                     document.getElementById('systemStatus').innerText = "✅ 處理完成！";
@@ -352,7 +358,7 @@
 
                 } catch (err) {
                     console.error(err);
-                    alert("執行時發生錯誤，請確認檔案格式是否正確。");
+                    alert("執行時發生錯誤，請確認檔案格式或選擇的演算法是否正確。");
                     document.getElementById('systemStatus').innerText = "❌ 發生錯誤";
                 } finally {
                     document.getElementById('processBtn').disabled = false;
