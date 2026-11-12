@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>進階無損壓縮工具 (LZ78 & Adaptive Huffman)</title>
+    <title>無失真壓縮工具 (LZ78 & Adaptive Huffman)</title>
 
     <!-- 引入 PyScript -->
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
@@ -16,6 +16,9 @@
             --primary-hover: #2563eb;
             --success: #10b981;
             --success-hover: #059669;
+            /* ===== [新增區塊開始：加入警告色變數] ===== */
+            --warning: #ef4444;
+            /* ===== [新增區塊結束] ===== */
             --text-main: #e0e0e0;
             --text-muted: #9ca3af;
             --border: #333333;
@@ -103,28 +106,41 @@
             max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
         }
 
-        /* 數據排版 (Grid) */
+        /* 數據排版 */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 20px 0; }
         .stat-box { background: #2a2a2a; padding: 16px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
         .stat-value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 4px; }
         .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* 警告提示框樣式 */
+        .warning-box {
+            display: none; /* 預設隱藏 */
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--warning);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--warning);
+            margin-bottom: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
 
         .status { margin-top: 12px; font-size: 14px; color: var(--text-muted); text-align: center; }
     </style>
 </head>
 <body>
 
-    <h1>📦 進階壓縮工具</h1>
-    <p>支援 LZ78 與 Adaptive Huffman 演算法，直接於瀏覽器內執行。</p>
+    <h1>無失真壓縮工具</h1>
+    <p>支援 LZ78 與 Adaptive Huffman 演算法。</p>
 
-    <!-- 區塊 1：上傳與設定 -->
+    <!-- 上傳與設定 -->
     <div class="card">
-        <h3>1. 檔案與設定</h3>
+        <h3>檔案與設定</h3>
         
         <input type="file" id="fileInput">
         
         <details id="inputPreviewContainer" style="display: none;">
-            <summary>👀 預覽上傳的檔案 (點擊展開)</summary>
+            <summary>預覽上傳的檔案 (點擊展開)</summary>
             <div class="preview-toolbar">
                 <button type="button" class="btn-toggle-view" id="inputToggleBtn" data-view="text">切換至 16 進位 (Hex) 檢視</button>
             </div>
@@ -149,12 +165,12 @@
         </div>
 
         <button id="processBtn" disabled>環境載入中，請稍候...</button>
-        <div class="status" id="systemStatus">等待 Python 模組就緒...</div>
+        <div class="status" id="systemStatus">等待 Python 模組...(第一次載入會耗時較久)</div>
     </div>
 
-    <!-- 區塊 2：結果展示 (初始隱藏) -->
+    <!-- 結果展示 (預設隱藏) -->
     <div class="card" id="resultCard" style="display: none;">
-        <h3>2. 處理結果</h3>
+        <h3>處理結果</h3>
         
         <div class="stats-grid">
             <div class="stat-box">
@@ -175,15 +191,21 @@
             </div>
         </div>
 
+        <!-- ===== [新增區塊開始：警告提示容器] ===== -->
+        <div id="compressionWarning" class="warning-box">
+            ⚠️ 提示：壓縮後的檔案比原檔案還大！此演算法可能不適合目前的檔案，建議嘗試別種演算法。
+        </div>
+        <!-- ===== [新增區塊結束] ===== -->
+
         <details>
-            <summary>👀 預覽處理後的檔案 (點擊展開)</summary>
+            <summary>預覽處理後的檔案 (點擊展開)</summary>
             <div class="preview-toolbar">
                 <button type="button" class="btn-toggle-view" id="outputToggleBtn" data-view="text">切換至 16 進位 (Hex) 檢視</button>
             </div>
             <pre class="preview-content" id="outputPreview"></pre>
         </details>
 
-        <button id="downloadBtn" class="btn-download">💾 儲存檔案</button>
+        <button id="downloadBtn" class="btn-download">儲存檔案</button>
     </div>
 
     <!-- JavaScript 前端邏輯 -->
@@ -202,7 +224,7 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // 產生純文字預覽
+        // 純文字預覽
         function generateTextPreview(uint8Array, limit = 1500) {
             const slice = uint8Array.length > limit ? uint8Array.slice(0, limit) : uint8Array;
             const decoder = new TextDecoder('utf-8', { fatal: false });
@@ -212,7 +234,7 @@
             return text;
         }
 
-        // 產生 16 進位 (Hex Dump) 預覽
+        // 16 進位 (Hex Dump) 預覽
         function generateHexPreview(uint8Array, limit = 512) {
             const slice = uint8Array.length > limit ? uint8Array.subarray(0, limit) : uint8Array;
             let hexDump = "";
@@ -277,7 +299,7 @@
             const btn = document.getElementById('processBtn');
             btn.innerText = "開始執行";
             btn.disabled = false;
-            document.getElementById('systemStatus').innerText = "✅ 系統就緒，請選擇檔案與操作。";
+            document.getElementById('systemStatus').innerText = "系統已就緒，請選擇檔案與操作。";
         };
 
         // 檔案上傳事件
@@ -288,7 +310,7 @@
             const arrayBuffer = await file.arrayBuffer();
             currentInputBytes = new Uint8Array(arrayBuffer);
 
-            // 智慧判斷：如果是壓縮檔，預設開啟 Hex 檢視；否則用純文字檢視
+            // 如果是壓縮檔，預設開啟 Hex 檢視；否則用純文字檢視
             const isCompressed = file.name.endsWith('.lz78') || file.name.endsWith('.ah');
             const defaultView = isCompressed ? 'hex' : 'text';
             
@@ -309,7 +331,7 @@
             const operation = document.getElementById('operation').value;
             const algorithm = document.getElementById('algorithm').value;
             
-            document.getElementById('systemStatus').innerText = "⏳ 運算中，這可能需要幾秒鐘的時間...";
+            document.getElementById('systemStatus').innerText = "運算中...(需耗時一定時間)";
             document.getElementById('processBtn').disabled = true;
 
             setTimeout(() => {
@@ -341,25 +363,39 @@
                     document.getElementById('statRatio').innerText = `${ratio}%`;
                     document.getElementById('statTime').innerText = `${timeTaken} ms`;
                     
+                    /* ===== [修改區塊開始：加入判斷與控制警告區塊的邏輯] ===== */
                     const ratioEl = document.getElementById('statRatio');
-                    if (operation === 'compress') {
-                        ratioEl.style.color = ratio < 100 ? "var(--success)" : "#ef4444";
-                    } else {
-                        ratioEl.style.color = "var(--primary)";
-                    }
+                    const warningBox = document.getElementById('compressionWarning');
 
-                    // 智慧判斷：如果是壓縮操作，產出物是二進位，預設 Hex；解壓縮則預設 Text
+                    if (operation === 'compress') {
+                        if (ratio >= 100) {
+                            // 壓縮率變大或不變，顯示紅字與警告框
+                            ratioEl.style.color = "var(--warning)";
+                            warningBox.style.display = 'block';
+                        } else {
+                            // 壓縮成功，顯示綠字並隱藏警告框
+                            ratioEl.style.color = "var(--success)";
+                            warningBox.style.display = 'none';
+                        }
+                    } else {
+                        // 解壓縮模式，顯示藍字並隱藏警告框
+                        ratioEl.style.color = "var(--primary)";
+                        warningBox.style.display = 'none';
+                    }
+                    /* ===== [修改區塊結束] ===== */
+
+                    // 如果是壓縮操作，預設 Hex；否則預設 Text 預覽
                     const outputDefaultView = (operation === 'compress') ? 'hex' : 'text';
                     document.getElementById('outputToggleBtn').setAttribute('data-view', outputDefaultView);
                     updatePreviewDisplay('outputPreview', 'outputToggleBtn', currentOutputBytes);
                     
-                    document.getElementById('systemStatus').innerText = "✅ 處理完成！";
+                    document.getElementById('systemStatus').innerText = "處理完成！";
                     document.getElementById('resultCard').style.display = 'block';
 
                 } catch (err) {
                     console.error(err);
                     alert("執行時發生錯誤，請確認檔案格式或選擇的演算法是否正確。");
-                    document.getElementById('systemStatus').innerText = "❌ 發生錯誤";
+                    document.getElementById('systemStatus').innerText = "發生錯誤！";
                 } finally {
                     document.getElementById('processBtn').disabled = false;
                 }
