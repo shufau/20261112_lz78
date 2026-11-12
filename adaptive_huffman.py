@@ -345,7 +345,7 @@ def core_decompress(input_data: bytes, original_len: int) -> bytearray:
 
 def compress_data(input_data: bytes) -> bytes:
     """
-    給 JS 呼叫: 壓縮並封裝 5 bytes 的檔頭
+    給 JS 呼叫: 壓縮並封裝 4 bytes 的檔頭
     
     Args:
         input_data (bytes): 要壓縮的位元組序列
@@ -353,24 +353,15 @@ def compress_data(input_data: bytes) -> bytes:
     Returns:
         bytes: 壓縮並加上檔頭的位元組序列
     """
-    # 空資料處理
     if not input_data:
-        return bytes([0x00])
+        return bytes([0x00, 0x00, 0x00, 0x00]) # 長度 0
 
-    compressed_body = core_compress(input_data) # 壓縮
-    orig_len = len(input_data) # 原始資料長度
+    compressed_body = core_compress(input_data) 
+    orig_len = len(input_data)
     
     result = bytearray()
-    
-    # 判斷壓縮後是否反而變大
-    if len(compressed_body) >= len(input_data):
-        result.append(0x00) # 0x00 代表無壓縮
-        result.extend(orig_len.to_bytes(4, byteorder='little'))
-        result.extend(input_data)
-    else:
-        result.append(0x01) # 0x01 代表已壓縮
-        result.extend(orig_len.to_bytes(4, byteorder='little'))
-        result.extend(compressed_body)
+    result.extend(orig_len.to_bytes(4, byteorder='little'))
+    result.extend(compressed_body)
         
     return bytes(result)
 
@@ -385,21 +376,14 @@ def decompress_data(input_data: bytes) -> bytes:
     Returns:
         bytes: 解壓縮後的位元組序列   
     """
-    # 不符合格式的資料處理 (連檔頭都沒有)
-    if len(input_data) < 5:
+    if len(input_data) < 4:
         return bytes()
 
-    # 解析檔頭
-    flag = input_data[0]
-    orig_len = int.from_bytes(input_data[1:5], byteorder='little')
-    payload = input_data[5:]
-
-    # 未壓縮資料處理
-    if flag == 0x00:
-        return payload[:min(orig_len, len(payload))]
+    orig_len = int.from_bytes(input_data[0:4], byteorder='little')
+    payload = input_data[4:]
 
     # 解壓縮
     try:
         return bytes(core_decompress(payload, orig_len))
     except EOFError:
-        return payload  # 解碼失敗時退回原始 payload
+        return payload
