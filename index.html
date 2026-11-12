@@ -42,30 +42,17 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        /* 表單元素樣式 */
         .controls-group {
             display: flex;
             gap: 16px;
             margin-bottom: 20px;
             flex-wrap: wrap;
         }
-
-        .control-item {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            flex: 1;
-            min-width: 200px;
-        }
-
+        .control-item { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 200px; }
+        
         select {
-            padding: 10px 12px;
-            border-radius: 6px;
-            background: #2a2a2a;
-            color: white;
-            border: 1px solid var(--border);
-            font-size: 15px;
-            outline: none;
+            padding: 10px 12px; border-radius: 6px; background: #2a2a2a;
+            color: white; border: 1px solid var(--border); font-size: 15px; outline: none;
         }
         select:focus { border-color: var(--primary); }
 
@@ -77,7 +64,6 @@
         }
         input[type="file"]::file-selector-button:hover { background: #4a4a4a; }
 
-        /* 按鈕樣式 */
         button { 
             background: var(--primary); color: white; border: none; 
             padding: 12px 24px; border-radius: 6px; cursor: pointer; 
@@ -90,61 +76,38 @@
         .btn-download { background: var(--success); margin-top: 20px; }
         .btn-download:hover { background: var(--success-hover); }
 
-        /* 預覽區塊樣式 (Collapsible) */
+        /* 預覽區塊樣式 */
         details {
-            background: #252525;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            margin-top: 12px;
+            background: #252525; border: 1px solid var(--border);
+            border-radius: 8px; overflow: hidden; margin-top: 12px;
         }
         summary {
-            padding: 12px 16px;
-            cursor: pointer;
-            font-weight: 600;
-            background: #2a2a2a;
-            user-select: none;
+            padding: 12px 16px; cursor: pointer; font-weight: 600;
+            background: #2a2a2a; user-select: none; outline: none;
         }
         summary:hover { background: #333333; }
+        
+        .preview-toolbar {
+            display: flex; justify-content: flex-end; padding: 8px 16px;
+            background: #1e1e1e; border-bottom: 1px solid var(--border);
+        }
+        .btn-toggle-view {
+            width: auto; padding: 6px 12px; font-size: 13px;
+            background: #4a4a4a; border-radius: 4px;
+        }
+        .btn-toggle-view:hover { background: #606060; }
+
         .preview-content {
-            padding: 16px;
-            margin: 0;
-            background: #000000;
-            color: #a5d6ff;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
-            max-height: 250px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
+            padding: 16px; margin: 0; background: #000000; color: #a5d6ff;
+            font-family: 'Courier New', Courier, monospace; font-size: 14px;
+            max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
         }
 
         /* 數據排版 (Grid) */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 16px;
-            margin: 20px 0;
-        }
-        .stat-box {
-            background: #2a2a2a;
-            padding: 16px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--primary);
-            margin-top: 4px;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin: 20px 0; }
+        .stat-box { background: #2a2a2a; padding: 16px; border-radius: 8px; border: 1px solid var(--border); text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 4px; }
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
 
         .status { margin-top: 12px; font-size: 14px; color: var(--text-muted); text-align: center; }
     </style>
@@ -162,6 +125,9 @@
         
         <details id="inputPreviewContainer" style="display: none;">
             <summary>👀 預覽上傳的檔案 (點擊展開)</summary>
+            <div class="preview-toolbar">
+                <button type="button" class="btn-toggle-view" id="inputToggleBtn" data-view="text">切換至 16 進位檢視</button>
+            </div>
             <pre class="preview-content" id="inputPreview"></pre>
         </details>
 
@@ -211,6 +177,9 @@
 
         <details>
             <summary>👀 預覽處理後的檔案 (點擊展開)</summary>
+            <div class="preview-toolbar">
+                <button type="button" class="btn-toggle-view" id="outputToggleBtn" data-view="text">切換至 16 進位檢視</button>
+            </div>
             <pre class="preview-content" id="outputPreview"></pre>
         </details>
 
@@ -233,23 +202,77 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        // 產生檔案的文字預覽 (避免大檔案卡死，最多取前 1500 字元)
-        function generatePreview(uint8Array) {
-            const previewLimit = 1500;
-            const slice = uint8Array.length > previewLimit ? uint8Array.slice(0, previewLimit) : uint8Array;
+        // 產生純文字預覽
+        function generateTextPreview(uint8Array, limit = 1500) {
+            const slice = uint8Array.length > limit ? uint8Array.slice(0, limit) : uint8Array;
             const decoder = new TextDecoder('utf-8', { fatal: false });
             let text = decoder.decode(slice);
-            
-            // 替換無法顯示的控制字元以利預覽二進位檔
-            text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
-            
-            if (uint8Array.length > previewLimit) {
-                text += "\n\n... (檔案過大，僅顯示前 1500 個字元)";
-            }
+            text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // 替換不可見字元為  符號
+            if (uint8Array.length > limit) text += "\n\n... (檔案過大，僅顯示前 " + limit + " 字元)";
             return text;
         }
 
-        // Python 初始化完成的回呼
+        // 產生 16 進位 (Hex Dump) 預覽
+        function generateHexPreview(uint8Array, limit = 512) {
+            const slice = uint8Array.length > limit ? uint8Array.subarray(0, limit) : uint8Array;
+            let hexDump = "";
+            
+            for (let i = 0; i < slice.length; i += 16) {
+                const chunk = slice.subarray(i, i + 16);
+                const offset = i.toString(16).padStart(8, '0');
+                
+                let hexStr = "";
+                let asciiStr = "";
+                
+                for (let j = 0; j < 16; j++) {
+                    if (j < chunk.length) {
+                        const byte = chunk[j];
+                        hexStr += byte.toString(16).padStart(2, '0') + " ";
+                        // ASCII 可視範圍 32~126
+                        asciiStr += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : ".";
+                    } else {
+                        hexStr += "   ";
+                        asciiStr += " ";
+                    }
+                    if (j === 7) hexStr += " "; // 中間加一個空格區隔 8 bytes
+                }
+                hexDump += `${offset}  ${hexStr} |${asciiStr}|\n`;
+            }
+            
+            if (uint8Array.length > limit) hexDump += `\n... (檔案過大，僅顯示前 ${limit} bytes 的 Hex 資訊)`;
+            return hexDump;
+        }
+
+        // 更新預覽畫面渲染
+        function updatePreviewDisplay(elementId, btnId, dataBytes) {
+            if (!dataBytes) return;
+            const btn = document.getElementById(btnId);
+            const pre = document.getElementById(elementId);
+            const viewMode = btn.getAttribute('data-view');
+
+            if (viewMode === 'text') {
+                pre.innerText = generateTextPreview(dataBytes);
+                btn.innerText = "切換至 16 進位 (Hex) 檢視";
+            } else {
+                pre.innerText = generateHexPreview(dataBytes);
+                btn.innerText = "切換至純文字 (Text) 檢視";
+            }
+        }
+
+        // 綁定預覽切換按鈕事件
+        document.getElementById('inputToggleBtn').addEventListener('click', (e) => {
+            const currentMode = e.target.getAttribute('data-view');
+            e.target.setAttribute('data-view', currentMode === 'text' ? 'hex' : 'text');
+            updatePreviewDisplay('inputPreview', 'inputToggleBtn', currentInputBytes);
+        });
+
+        document.getElementById('outputToggleBtn').addEventListener('click', (e) => {
+            const currentMode = e.target.getAttribute('data-view');
+            e.target.setAttribute('data-view', currentMode === 'text' ? 'hex' : 'text');
+            updatePreviewDisplay('outputPreview', 'outputToggleBtn', currentOutputBytes);
+        });
+
+        // Python 初始化完成
         window.onPythonReady = () => {
             pythonLoaded = true;
             const btn = document.getElementById('processBtn');
@@ -258,7 +281,7 @@
             document.getElementById('systemStatus').innerText = "✅ 系統就緒，請選擇檔案與操作。";
         };
 
-        // 監聽檔案上傳與預覽
+        // 檔案上傳事件
         document.getElementById('fileInput').addEventListener('change', async (e) => {
             if (e.target.files.length === 0) return;
             const file = e.target.files[0];
@@ -266,12 +289,15 @@
             const arrayBuffer = await file.arrayBuffer();
             currentInputBytes = new Uint8Array(arrayBuffer);
 
-            document.getElementById('inputPreview').innerText = generatePreview(currentInputBytes);
+            // 初始化時預設為 Text 模式
+            document.getElementById('inputToggleBtn').setAttribute('data-view', 'text');
+            updatePreviewDisplay('inputPreview', 'inputToggleBtn', currentInputBytes);
+            
             document.getElementById('inputPreviewContainer').style.display = 'block';
-            document.getElementById('resultCard').style.display = 'none'; // 換新檔案時隱藏舊結果
+            document.getElementById('resultCard').style.display = 'none'; 
         });
 
-        // 執行按鈕邏輯
+        // 執行壓縮/解壓縮按鈕邏輯
         document.getElementById('processBtn').addEventListener('click', () => {
             if (!currentInputBytes) return alert("請先選擇檔案！");
             
@@ -281,13 +307,11 @@
             document.getElementById('systemStatus').innerText = "⏳ 運算中，這可能需要幾秒鐘的時間...";
             document.getElementById('processBtn').disabled = true;
 
-            // 使用 setTimeout 讓 UI 先更新 Loading 狀態再卡死運算
             setTimeout(() => {
                 const startTime = performance.now();
                 let outputBytes;
 
                 try {
-                    // 根據選擇呼叫對應的 Python 函式
                     if (operation === 'compress' && algorithm === 'lz78') {
                         outputBytes = window.py_lz78_compress(currentInputBytes);
                     } else if (operation === 'decompress' && algorithm === 'lz78') {
@@ -302,7 +326,7 @@
                     const timeTaken = (endTime - startTime).toFixed(1);
                     currentOutputBytes = outputBytes;
 
-                    // 更新數據面板
+                    // 數據面板更新
                     const origSize = currentInputBytes.length;
                     const newSize = outputBytes.length;
                     const ratio = ((newSize / origSize) * 100).toFixed(1);
@@ -312,7 +336,6 @@
                     document.getElementById('statRatio').innerText = `${ratio}%`;
                     document.getElementById('statTime').innerText = `${timeTaken} ms`;
                     
-                    // 特效顏色處理（如果是壓縮，越小越好；解壓縮反之）
                     const ratioEl = document.getElementById('statRatio');
                     if (operation === 'compress') {
                         ratioEl.style.color = ratio < 100 ? "var(--success)" : "#ef4444";
@@ -320,8 +343,9 @@
                         ratioEl.style.color = "var(--primary)";
                     }
 
-                    // 輸出預覽
-                    document.getElementById('outputPreview').innerText = generatePreview(outputBytes);
+                    // 預設為 Hex 模式 (通常壓縮完的檔案看 Hex 比較有意義)，並更新畫面
+                    document.getElementById('outputToggleBtn').setAttribute('data-view', 'hex');
+                    updatePreviewDisplay('outputPreview', 'outputToggleBtn', currentOutputBytes);
                     
                     document.getElementById('systemStatus').innerText = "✅ 處理完成！";
                     document.getElementById('resultCard').style.display = 'block';
@@ -347,7 +371,6 @@
             if (operation === 'compress') {
                 downloadName += (algorithm === 'lz78' ? ".lz78" : ".ah");
             } else {
-                // 如果檔名有壓縮副檔名，就移除；否則加上前綴
                 if (downloadName.endsWith(".lz78")) downloadName = downloadName.slice(0, -5);
                 else if (downloadName.endsWith(".ah")) downloadName = downloadName.slice(0, -3);
                 else downloadName = "decompressed_" + downloadName;
@@ -365,52 +388,38 @@
         });
     </script>
 
-    <!-- 加入 py-config，同時載入 lz78.py 與 adaptive_huffman.py -->
+    <!-- py-config 與 py-script 區塊 -->
     <py-config>
         [files]
         "lz78.py" = "./lz78.py"
         "adaptive_huffman.py" = "./adaptive_huffman.py"
     </py-config>
 
-    <!-- py-script 區塊 -->
     <py-script>
 import js
 from pyscript import window
 from pyodide.ffi import to_js
 
-# 匯入兩組演算法
 import lz78
 import adaptive_huffman
 
-# LZ78 綁定
 def js_lz78_compress(js_uint8_array):
-    input_data = bytes(js_uint8_array.to_bytes())
-    res = lz78.compress_data(input_data)
-    return to_js(res)
+    return to_js(lz78.compress_data(bytes(js_uint8_array.to_bytes())))
 
 def js_lz78_decompress(js_uint8_array):
-    input_data = bytes(js_uint8_array.to_bytes())
-    res = lz78.decompress_data(input_data)
-    return to_js(res)
+    return to_js(lz78.decompress_data(bytes(js_uint8_array.to_bytes())))
 
-# Adaptive Huffman 綁定
 def js_ah_compress(js_uint8_array):
-    input_data = bytes(js_uint8_array.to_bytes())
-    res = adaptive_huffman.compress_data(input_data)
-    return to_js(res)
+    return to_js(adaptive_huffman.compress_data(bytes(js_uint8_array.to_bytes())))
 
 def js_ah_decompress(js_uint8_array):
-    input_data = bytes(js_uint8_array.to_bytes())
-    res = adaptive_huffman.decompress_data(input_data)
-    return to_js(res)
+    return to_js(adaptive_huffman.decompress_data(bytes(js_uint8_array.to_bytes())))
 
-# 註冊至全域 window 物件
 window.py_lz78_compress = js_lz78_compress
 window.py_lz78_decompress = js_lz78_decompress
 window.py_ah_compress = js_ah_compress
 window.py_ah_decompress = js_ah_decompress
 
-# 通知 JS 前端 Python 模組準備完畢
 window.onPythonReady()
     </py-script>
 
