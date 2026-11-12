@@ -2,169 +2,374 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>LZ78 壓縮工具</title>
+    <title>進階無損壓縮工具 (LZ78 & Adaptive Huffman)</title>
 
     <!-- 引入 PyScript -->
     <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
 
     <style>
+        :root {
+            --bg-main: #121212;
+            --bg-card: #1e1e1e;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --success-hover: #059669;
+            --text-main: #e0e0e0;
+            --text-muted: #9ca3af;
+            --border: #333333;
+        }
+
         body { 
             font-family: system-ui, -apple-system, sans-serif; 
-            max-width: 650px; 
+            max-width: 800px; 
             margin: 40px auto; 
             padding: 0 20px; 
-            background-color: #121212;
-            color: #e0e0e0;
+            background-color: var(--bg-main);
+            color: var(--text-main);
             line-height: 1.6;
         }
-        h1, h3 { color: #ffffff; }
+        
+        h1, h3 { color: #ffffff; margin-top: 0; }
+        
         .card { 
-            background: #1e1e1e;
+            background: var(--bg-card);
             padding: 24px; 
             margin-bottom: 24px; 
             border-radius: 12px; 
-            border: 1px solid #333; 
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border); 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
-        input[type="file"] { 
-            margin-bottom: 15px; 
-            display: block; 
-            width: 100%; 
-            color: #e0e0e0;
+
+        /* 表單元素樣式 */
+        .controls-group {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
-        input[type="file"]::file-selector-button {
-            background: #333333;
-            color: #ffffff;
-            border: 1px solid #555555;
-            padding: 8px 16px;
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        select {
+            padding: 10px 12px;
             border-radius: 6px;
-            cursor: pointer;
-            margin-right: 12px;
-            transition: background 0.2s;
+            background: #2a2a2a;
+            color: white;
+            border: 1px solid var(--border);
+            font-size: 15px;
+            outline: none;
+        }
+        select:focus { border-color: var(--primary); }
+
+        input[type="file"] { display: block; width: 100%; color: var(--text-main); margin-bottom: 12px;}
+        input[type="file"]::file-selector-button {
+            background: #333333; color: #ffffff; border: 1px solid #555555;
+            padding: 8px 16px; border-radius: 6px; cursor: pointer;
+            margin-right: 12px; transition: background 0.2s;
         }
         input[type="file"]::file-selector-button:hover { background: #4a4a4a; }
+
+        /* 按鈕樣式 */
         button { 
-            background: #3b82f6; 
-            color: white; 
-            border: none; 
-            padding: 10px 20px; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            font-size: 15px; 
+            background: var(--primary); color: white; border: none; 
+            padding: 12px 24px; border-radius: 6px; cursor: pointer; 
+            font-size: 16px; font-weight: 600; transition: background 0.2s; 
+            width: 100%;
+        }
+        button:hover { background: var(--primary-hover); }
+        button:disabled { background: #4b5563; cursor: not-allowed; }
+        
+        .btn-download { background: var(--success); margin-top: 20px; }
+        .btn-download:hover { background: var(--success-hover); }
+
+        /* 預覽區塊樣式 (Collapsible) */
+        details {
+            background: #252525;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-top: 12px;
+        }
+        summary {
+            padding: 12px 16px;
+            cursor: pointer;
             font-weight: 600;
-            transition: background 0.2s; 
+            background: #2a2a2a;
+            user-select: none;
         }
-        button:hover { background: #2563eb; }
-        .status { 
-            margin-top: 12px; 
-            font-size: 14px; 
-            color: #9ca3af; 
-            min-height: 20px;
+        summary:hover { background: #333333; }
+        .preview-content {
+            padding: 16px;
+            margin: 0;
+            background: #000000;
+            color: #a5d6ff;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            max-height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
+
+        /* 數據排版 (Grid) */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: #2a2a2a;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-top: 4px;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .status { margin-top: 12px; font-size: 14px; color: var(--text-muted); text-align: center; }
     </style>
 </head>
 <body>
 
-    <h1>📦 LZ78 壓縮工具</h1>
-    <p>透過 PyScript (Pyodide) 在瀏覽器中直接執行 Python 處理檔案。</p>
+    <h1>📦 進階壓縮工具</h1>
+    <p>支援 LZ78 與 Adaptive Huffman 演算法，直接於瀏覽器內執行。</p>
 
+    <!-- 區塊 1：上傳與設定 -->
     <div class="card">
-        <h3>1. 壓縮檔案</h3>
-        <input type="file" id="fileToCompress">
-        <button id="compressBtn">壓縮檔案並下載</button>
-        <div class="status" id="compressStatus">狀態：等待 Python 環境載入 (初次載入較久)...</div>
+        <h3>1. 檔案與設定</h3>
+        
+        <input type="file" id="fileInput">
+        
+        <details id="inputPreviewContainer" style="display: none;">
+            <summary>👀 預覽上傳的檔案 (點擊展開)</summary>
+            <pre class="preview-content" id="inputPreview"></pre>
+        </details>
+
+        <div class="controls-group" style="margin-top: 20px;">
+            <div class="control-item">
+                <label for="operation">操作模式</label>
+                <select id="operation">
+                    <option value="compress">壓縮</option>
+                    <option value="decompress">解壓縮</option>
+                </select>
+            </div>
+            <div class="control-item">
+                <label for="algorithm">演算法</label>
+                <select id="algorithm">
+                    <option value="lz78">LZ78</option>
+                    <option value="ah">Adaptive Huffman</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="processBtn" disabled>環境載入中，請稍候...</button>
+        <div class="status" id="systemStatus">等待 Python 模組就緒...</div>
     </div>
 
-    <div class="card">
-        <h3>2. 解壓縮檔案</h3>
-        <input type="file" id="fileToDecompress">
-        <button id="decompressBtn">解壓縮檔案並下載</button>
-        <div class="status" id="decompressStatus">狀態：等待 Python 環境載入...</div>
+    <!-- 區塊 2：結果展示 (初始隱藏) -->
+    <div class="card" id="resultCard" style="display: none;">
+        <h3>2. 處理結果</h3>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-label">原始大小</div>
+                <div class="stat-value" id="statOriginal">0 B</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">處理後大小</div>
+                <div class="stat-value" id="statNew">0 B</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">壓縮率 / 變化</div>
+                <div class="stat-value" id="statRatio">0%</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">執行耗時</div>
+                <div class="stat-value" id="statTime">0 ms</div>
+            </div>
+        </div>
+
+        <details>
+            <summary>👀 預覽處理後的檔案 (點擊展開)</summary>
+            <pre class="preview-content" id="outputPreview"></pre>
+        </details>
+
+        <button id="downloadBtn" class="btn-download">💾 儲存檔案</button>
     </div>
 
-    <!-- 介面控制 JS -->
+    <!-- JavaScript 前端邏輯 -->
     <script>
         let pythonLoaded = false;
+        let currentInputBytes = null;
+        let currentOutputBytes = null;
+        let currentFileName = "";
 
+        // 格式化位元組大小
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // 產生檔案的文字預覽 (避免大檔案卡死，最多取前 1500 字元)
+        function generatePreview(uint8Array) {
+            const previewLimit = 1500;
+            const slice = uint8Array.length > previewLimit ? uint8Array.slice(0, previewLimit) : uint8Array;
+            const decoder = new TextDecoder('utf-8', { fatal: false });
+            let text = decoder.decode(slice);
+            
+            // 替換無法顯示的控制字元以利預覽二進位檔
+            text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+            
+            if (uint8Array.length > previewLimit) {
+                text += "\n\n... (檔案過大，僅顯示前 1500 個字元)";
+            }
+            return text;
+        }
+
+        // Python 初始化完成的回呼
         window.onPythonReady = () => {
             pythonLoaded = true;
-            document.getElementById('compressStatus').innerText = "狀態：Python 模組就緒";
-            document.getElementById('decompressStatus').innerText = "狀態：Python 模組就緒";
+            const btn = document.getElementById('processBtn');
+            btn.innerText = "開始執行";
+            btn.disabled = false;
+            document.getElementById('systemStatus').innerText = "✅ 系統就緒，請選擇檔案與操作。";
         };
 
-        function downloadFile(uint8Array, filename) {
-            const blob = new Blob([uint8Array]);
+        // 監聽檔案上傳與預覽
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            if (e.target.files.length === 0) return;
+            const file = e.target.files[0];
+            currentFileName = file.name;
+            const arrayBuffer = await file.arrayBuffer();
+            currentInputBytes = new Uint8Array(arrayBuffer);
+
+            document.getElementById('inputPreview').innerText = generatePreview(currentInputBytes);
+            document.getElementById('inputPreviewContainer').style.display = 'block';
+            document.getElementById('resultCard').style.display = 'none'; // 換新檔案時隱藏舊結果
+        });
+
+        // 執行按鈕邏輯
+        document.getElementById('processBtn').addEventListener('click', () => {
+            if (!currentInputBytes) return alert("請先選擇檔案！");
+            
+            const operation = document.getElementById('operation').value;
+            const algorithm = document.getElementById('algorithm').value;
+            
+            document.getElementById('systemStatus').innerText = "⏳ 運算中，這可能需要幾秒鐘的時間...";
+            document.getElementById('processBtn').disabled = true;
+
+            // 使用 setTimeout 讓 UI 先更新 Loading 狀態再卡死運算
+            setTimeout(() => {
+                const startTime = performance.now();
+                let outputBytes;
+
+                try {
+                    // 根據選擇呼叫對應的 Python 函式
+                    if (operation === 'compress' && algorithm === 'lz78') {
+                        outputBytes = window.py_lz78_compress(currentInputBytes);
+                    } else if (operation === 'decompress' && algorithm === 'lz78') {
+                        outputBytes = window.py_lz78_decompress(currentInputBytes);
+                    } else if (operation === 'compress' && algorithm === 'ah') {
+                        outputBytes = window.py_ah_compress(currentInputBytes);
+                    } else if (operation === 'decompress' && algorithm === 'ah') {
+                        outputBytes = window.py_ah_decompress(currentInputBytes);
+                    }
+
+                    const endTime = performance.now();
+                    const timeTaken = (endTime - startTime).toFixed(1);
+                    currentOutputBytes = outputBytes;
+
+                    // 更新數據面板
+                    const origSize = currentInputBytes.length;
+                    const newSize = outputBytes.length;
+                    const ratio = ((newSize / origSize) * 100).toFixed(1);
+
+                    document.getElementById('statOriginal').innerText = formatBytes(origSize);
+                    document.getElementById('statNew').innerText = formatBytes(newSize);
+                    document.getElementById('statRatio').innerText = `${ratio}%`;
+                    document.getElementById('statTime').innerText = `${timeTaken} ms`;
+                    
+                    // 特效顏色處理（如果是壓縮，越小越好；解壓縮反之）
+                    const ratioEl = document.getElementById('statRatio');
+                    if (operation === 'compress') {
+                        ratioEl.style.color = ratio < 100 ? "var(--success)" : "#ef4444";
+                    } else {
+                        ratioEl.style.color = "var(--primary)";
+                    }
+
+                    // 輸出預覽
+                    document.getElementById('outputPreview').innerText = generatePreview(outputBytes);
+                    
+                    document.getElementById('systemStatus').innerText = "✅ 處理完成！";
+                    document.getElementById('resultCard').style.display = 'block';
+
+                } catch (err) {
+                    console.error(err);
+                    alert("執行時發生錯誤，請確認檔案格式是否正確。");
+                    document.getElementById('systemStatus').innerText = "❌ 發生錯誤";
+                } finally {
+                    document.getElementById('processBtn').disabled = false;
+                }
+            }, 50);
+        });
+
+        // 下載檔案邏輯
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (!currentOutputBytes) return;
+            
+            const operation = document.getElementById('operation').value;
+            const algorithm = document.getElementById('algorithm').value;
+            let downloadName = currentFileName;
+
+            if (operation === 'compress') {
+                downloadName += (algorithm === 'lz78' ? ".lz78" : ".ah");
+            } else {
+                // 如果檔名有壓縮副檔名，就移除；否則加上前綴
+                if (downloadName.endsWith(".lz78")) downloadName = downloadName.slice(0, -5);
+                else if (downloadName.endsWith(".ah")) downloadName = downloadName.slice(0, -3);
+                else downloadName = "decompressed_" + downloadName;
+            }
+
+            const blob = new Blob([currentOutputBytes]);
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = filename;
+            a.download = downloadName;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        }
-
-        document.getElementById('compressBtn').addEventListener('click', async () => {
-            if (!pythonLoaded) return alert("Python 尚未載入完成！");
-            const fileInput = document.getElementById('fileToCompress');
-            if (fileInput.files.length === 0) return alert("請先選擇要壓縮的檔案！");
-
-            const file = fileInput.files[0];
-            const arrayBuffer = await file.arrayBuffer();
-            const inputBytes = new Uint8Array(arrayBuffer);
-
-            document.getElementById('compressStatus').innerText = "壓縮中 (Python 運算中，請稍候)...";
-
-            setTimeout(() => {
-                const startTime = performance.now();
-                
-                const compressedBytes = window.py_compress(inputBytes);
-                
-                const endTime = performance.now();
-                const timeTaken = (endTime - startTime).toFixed(2);
-                
-                document.getElementById('compressStatus').innerText = 
-                    `壓縮成功！原始大小: ${inputBytes.length} bytes -> 壓縮後: ${compressedBytes.length} bytes，耗時: ${timeTaken} 毫秒`;
-                
-                downloadFile(compressedBytes, file.name + ".lz78");
-            }, 50);
-        });
-
-        document.getElementById('decompressBtn').addEventListener('click', async () => {
-            if (!pythonLoaded) return alert("Python 尚未載入完成！");
-            const fileInput = document.getElementById('fileToDecompress');
-            if (fileInput.files.length === 0) return alert("請先選擇要解壓縮的檔案！");
-
-            const file = fileInput.files[0];
-            const arrayBuffer = await file.arrayBuffer();
-            const inputBytes = new Uint8Array(arrayBuffer);
-
-            document.getElementById('decompressStatus').innerText = "解壓縮中...";
-
-            setTimeout(() => {
-                const startTime = performance.now();
-                
-                const decompressedBytes = window.py_decompress(inputBytes);
-                
-                const endTime = performance.now();
-                const timeTaken = (endTime - startTime).toFixed(2);
-                
-                document.getElementById('decompressStatus').innerText = `解壓縮完成！耗時: ${timeTaken} 毫秒`;
-
-                let originalName = file.name.endsWith(".lz78") 
-                    ? file.name.slice(0, -5) 
-                    : "decompressed_" + file.name;
-
-                downloadFile(decompressedBytes, originalName);
-            }, 50);
         });
     </script>
 
-    <!-- 加入 py-config，載入 lz78.py -->
+    <!-- 加入 py-config，同時載入 lz78.py 與 adaptive_huffman.py -->
     <py-config>
         [files]
         "lz78.py" = "./lz78.py"
+        "adaptive_huffman.py" = "./adaptive_huffman.py"
     </py-config>
 
     <!-- py-script 區塊 -->
@@ -173,23 +378,39 @@ import js
 from pyscript import window
 from pyodide.ffi import to_js
 
-# 從 lz78.py 引入壓縮與解壓縮函式
-from lz78 import compress_data, decompress_data
+# 匯入兩組演算法
+import lz78
+import adaptive_huffman
 
-def js_compress_data(js_uint8_array):
+# LZ78 綁定
+def js_lz78_compress(js_uint8_array):
     input_data = bytes(js_uint8_array.to_bytes())
-    res = compress_data(input_data)
+    res = lz78.compress_data(input_data)
     return to_js(res)
 
-def js_decompress_data(js_uint8_array):
+def js_lz78_decompress(js_uint8_array):
     input_data = bytes(js_uint8_array.to_bytes())
-    res = decompress_data(input_data)
+    res = lz78.decompress_data(input_data)
     return to_js(res)
 
-window.py_compress = js_compress_data
-window.py_decompress = js_decompress_data
+# Adaptive Huffman 綁定
+def js_ah_compress(js_uint8_array):
+    input_data = bytes(js_uint8_array.to_bytes())
+    res = adaptive_huffman.compress_data(input_data)
+    return to_js(res)
 
-# 通知 JS 前端 Python 模組已經準備完畢
+def js_ah_decompress(js_uint8_array):
+    input_data = bytes(js_uint8_array.to_bytes())
+    res = adaptive_huffman.decompress_data(input_data)
+    return to_js(res)
+
+# 註冊至全域 window 物件
+window.py_lz78_compress = js_lz78_compress
+window.py_lz78_decompress = js_lz78_decompress
+window.py_ah_compress = js_ah_compress
+window.py_ah_decompress = js_ah_decompress
+
+# 通知 JS 前端 Python 模組準備完畢
 window.onPythonReady()
     </py-script>
 
